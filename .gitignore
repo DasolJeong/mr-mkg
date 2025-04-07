@@ -1,0 +1,6 @@
+# ScienceQA raw image data (large)
+data/ScienceQA
+
+# Preprocessed output files
+*.pt
+*.pkl
