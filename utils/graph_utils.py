@@ -1,19 +1,31 @@
-import dgl
 import torch
+import dgl
 import networkx as nx
 
-def convert_nx_to_dgl(nx_g: nx.MultiDiGraph):
-    if nx_g.number_of_nodes() == 0:
+
+def convert_nx_to_dgl(nx_graph: nx.MultiDiGraph):
+    """
+    Convert a NetworkX MMKG graph into a DGLGraph.
+
+    Args:
+        nx_graph: NetworkX MultiDiGraph
+
+    Returns:
+        dgl_graph: DGLGraph
+        node2id: Dict[str, int]
+        rel2id: Dict[str, int]
+        rel_types: Tensor of shape [E] – relation type index per edge
+    """
+    if nx_graph.number_of_nodes() == 0:
         print("[Warning] Empty graph skipped.")
         return None, {}, {}, torch.tensor([])
 
-    node2id = {node: i for i, node in enumerate(nx_g.nodes)}
-    rel_set = set()
-    
+    node2id = {node: i for i, node in enumerate(nx_graph.nodes)}
     src, dst, rel = [], [], []
+    rel_set = set()
 
-    for u, v, data in nx_g.edges(data=True):
-        r = data['relation']
+    for u, v, data in nx_graph.edges(data=True):
+        r = data["relation"]
         src.append(node2id[u])
         dst.append(node2id[v])
         rel.append(r)
@@ -22,87 +34,81 @@ def convert_nx_to_dgl(nx_g: nx.MultiDiGraph):
     rel2id = {r: i for i, r in enumerate(sorted(rel_set))}
     rel_types = torch.tensor([rel2id[r] for r in rel], dtype=torch.long)
 
-    g = dgl.graph((src, dst), num_nodes=len(node2id))
-    g.edata['rel_type'] = rel_types
+    dgl_graph = dgl.graph((src, dst), num_nodes=len(node2id))
+    dgl_graph.edata["rel_type"] = rel_types
 
+    # Assign node types
     node_type_vocab = {"text": 0, "image": 1, "entity": 2}
-    node_type_tensor = []
-    for n in nx_g.nodes:
-        t_str = nx_g.nodes[n].get("type", "entity")
-        t_idx = node_type_vocab.get(t_str, 2)
-        node_type_tensor.append(t_idx)
+    node_type_ids = []
 
-    # ✅ 노드 수와 feature 수가 일치하는지 확인
-    if len(node_type_tensor) != g.num_nodes():
-        print(f"[Error] Node feature mismatch: {len(node_type_tensor)} != {g.num_nodes()}")
+    for node in nx_graph.nodes:
+        node_type_str = nx_graph.nodes[node].get("type", "entity")
+        node_type_id = node_type_vocab.get(node_type_str, 2)
+        node_type_ids.append(node_type_id)
+
+    if len(node_type_ids) != dgl_graph.num_nodes():
+        print(f"[Error] Node count mismatch: {len(node_type_ids)} vs {dgl_graph.num_nodes()}")
         return None, {}, {}, torch.tensor([])
 
-    g.ndata['ntype'] = torch.tensor(node_type_tensor, dtype=torch.long)
+    dgl_graph.ndata["ntype"] = torch.tensor(node_type_ids, dtype=torch.long)
 
-    # ✅ self-loop 추가는 비어있지 않을 때만
-    if g.num_nodes() > 0:
-        g = dgl.add_self_loop(g)
+    if dgl_graph.num_nodes() > 0:
+        dgl_graph = dgl.add_self_loop(dgl_graph)
 
-    return g, node2id, rel2id, rel_types
+    return dgl_graph, node2id, rel2id, rel_types
 
-def extract_mrmkg_subgraph(G: nx.MultiDiGraph) -> nx.MultiDiGraph:
+
+def extract_mrmkg_subgraph(nx_graph: nx.MultiDiGraph) -> nx.MultiDiGraph:
     """
-    MR-MKG 논문 방식에 따라 질문 + 엔티티 중심 서브그래프 추출
+    Extract MR-MKG style subgraph: question + entities + image + 1-hop neighbors.
 
-    포함 요소:
-    - 질문 노드
-    - 이미지 노드 (있는 경우)
-    - 엔티티 노드들
-    - 엔티티로부터 1-hop 이웃 노드들 + 연결된 triple
+    Args:
+        nx_graph: Full MMKG NetworkX graph
 
     Returns:
-        subgraph: nx.MultiDiGraph
+        subgraph: extracted NetworkX subgraph (or None if empty)
     """
     center_nodes = set()
-    
-    # 1. 질문 노드
-    question_node = next((n for n, d in G.nodes(data=True) if d.get("type") == "text"), None)
+
+    # Add question node
+    question_node = next((n for n, d in nx_graph.nodes(data=True) if d.get("type") == "text"), None)
     if question_node:
         center_nodes.add(question_node)
 
-    # 2. 이미지 노드 (있을 경우)
-    for n, d in G.nodes(data=True):
-        if d.get("type") == "image":
-            center_nodes.add(n)
+    # Add image node(s)
+    image_nodes = [n for n, d in nx_graph.nodes(data=True) if d.get("type") == "image"]
+    center_nodes.update(image_nodes)
 
-    # 3. 엔티티 노드들
-    entity_nodes = [n for n, d in G.nodes(data=True) if d.get("type") == "entity"]
+    # Add entity nodes
+    entity_nodes = [n for n, d in nx_graph.nodes(data=True) if d.get("type") == "entity"]
     center_nodes.update(entity_nodes)
 
-    # 4. 엔티티에서 1-hop 이웃 노드들
-    undirected = G.to_undirected()
+    # Add 1-hop neighbors of entity nodes
+    undirected = nx_graph.to_undirected()
     for ent in entity_nodes:
         if ent in undirected:
             neighbors = nx.single_source_shortest_path_length(undirected, ent, cutoff=1)
             center_nodes.update(neighbors.keys())
 
-    # 서브그래프 생성
-    subgraph = G.subgraph(center_nodes).copy()
-    
+    subgraph = nx_graph.subgraph(center_nodes).copy()
+
     if subgraph.number_of_nodes() == 0:
-        print(f"[Warning] Skipping empty subgraph.")
+        print("[Warning] Skipping empty subgraph.")
         return None
-    
+
     return subgraph
 
 
-def get_node_initial_embeddings(graph, node2id):
+def get_node_initial_embeddings(nx_graph, node2id):
     """
-    Create initial node embeddings for a given graph.
+    Initialize node embeddings for input graph.
 
     Args:
-        graph: The networkx graph object
-        node2id: A dictionary mapping node ids to node index
+        nx_graph: NetworkX graph
+        node2id: Dict[node_key, int] mapping
 
     Returns:
-        node_embeddings: Initial node embeddings (tensor)
+        Tensor of shape [N, 512] with random initialization
     """
-    # 노드 수만큼 임베딩 초기화 (512 차원으로 예시 설정)
-    num_nodes = len(graph.nodes)
-    node_embeddings = torch.randn(num_nodes, 512)  # [N, 512] 임베딩 초기화
-    return node_embeddings
+    num_nodes = len(nx_graph.nodes)
+    return torch.randn(num_nodes, 512)
