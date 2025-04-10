@@ -10,31 +10,32 @@ It supports visual-textual reasoning using knowledge-enhanced LLMs with no LLM f
 
 ```
 mr-mkg/
-├── train.py                  # Main training pipeline for MR-MKG
-├── inference.py              # Inference script for free-form questions + image input
-├── test.py                   # Evaluation script on test set with answer comparison
-├── validate.py               # Validation-only evaluation script (loss calculation)
+├── train.py                  # Training script
+├── inference.py              # Free-form question + image inference
+├── test.py                   # Test set evaluation
+├── validate.py               # Validation loss evaluation
 │
-├── models/                   # Core model components
-│   ├── mr_mkg.py             # Full MR-MKG model: integrates LLM, KG encoder, adapters
-│   ├── encoders.py           # LanguageEncoder (LLM-based), KGEncoder (RGAT-based)
-│   ├── adapters.py           # VisualAdapter and KnowledgeAdapter (cross-modal fusion)
-│   ├── rgat.py               # Relational GAT layers for knowledge graph encoding
-│   └── cross_modal_align.py  # Triplet loss module for image-text alignment
+├── models/                   # Model components
+│   ├── mr_mkg.py             # Full MR-MKG model
+│   ├── encoders.py           # Text and KG encoders
+│   ├── adapters.py           # Visual and knowledge adapters
+│   ├── rgat.py               # RGAT layers
+│   └── cross_modal_align.py  # Image-text alignment loss
 │
-├── data/                     # Dataset loading and preprocessing
-│   ├── build_mmkg.py         # Convert ScienceQA to MMKG format (graph-based)
-│   ├── generate_mmkg_dataset.py # Build final MMKG .pt datasets (train/val/test)
-│   ├── load_scienceqa.py     # Load and parse original ScienceQA format
-│   ├── mrmkg_dataset.py      # PyTorch Dataset class for MMKG graphs
-│   └── scienceqa/            # Directory for raw ScienceQA JSON files
+├── data/                     # Dataset processing
+│   ├── build_mmkg.py         # Build MMKG graphs
+│   ├── generate_mmkg_dataset.py # Save MMKG datasets
+│   ├── load_scienceqa.py     # Load ScienceQA JSON
+│   ├── mrmkg_dataset.py      # MMKG PyTorch Dataset
+│   └── scienceqa/            # Raw ScienceQA data
 │
-├── utils/                    # Utility modules
-│   ├── graph_utils.py        # Graph conversion: NetworkX ↔ DGL, subgraph extraction
-│   ├── visual_feature.py     # CLIP-based image embedding and node feature init
-│   └── align_utils.py        # Cross-modal alignment loss (image ↔ entity embedding)
+├── utils/                    # Helper functions
+│   ├── graph_utils.py        # Graph processing
+│   ├── visual_feature.py     # Image embeddings
+│   └── align_utils.py        # Alignment loss
 │
-└── README.md                 # Project overview, instructions, and usage guide
+└── README.md             
+
 
 ```
 
