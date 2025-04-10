@@ -10,31 +10,32 @@ It supports visual-textual reasoning using knowledge-enhanced LLMs with no LLM f
 
 ```
 mr-mkg/
-├── train.py                  # 학습 전체 파이프라인
-├── inference.py              # 임의 질문 + 이미지 추론 스크립트
-├── test.py                   # test set 기반 평가
-├── validate.py               # validation loss 평가용 스크립트
+├── train.py                  # Main training pipeline for MR-MKG
+├── inference.py              # Inference script for free-form questions + image input
+├── test.py                   # Evaluation script on test set with answer comparison
+├── validate.py               # Validation-only evaluation script (loss calculation)
 │
-├── models/                   # 모델 구성 모듈
-│   ├── mr_mkg.py             # 전체 MR-MKG 모델 정의
-│   ├── encoders.py           # LanguageEncoder, KGEncoder(RGAT)
-│   ├── adapters.py           # VisualAdapter, KnowledgeAdapter
-│   ├── rgat.py               # RGAT layer 정의
-│   └── cross_modal_align.py  # 이미지-엔티티 정렬 loss (Triplet)
+├── models/                   # Core model components
+│   ├── mr_mkg.py             # Full MR-MKG model: integrates LLM, KG encoder, adapters
+│   ├── encoders.py           # LanguageEncoder (LLM-based), KGEncoder (RGAT-based)
+│   ├── adapters.py           # VisualAdapter and KnowledgeAdapter (cross-modal fusion)
+│   ├── rgat.py               # Relational GAT layers for knowledge graph encoding
+│   └── cross_modal_align.py  # Triplet loss module for image-text alignment
 │
-├── data/
-│   ├── build_mmkg.py         # ScienceQA → MMKG 변환
-│   ├── generate_mmkg_dataset.py # 전체 데이터셋 구축 스크립트
-│   ├── load_scienceqa.py     # ScienceQA 포맷 로딩
-│   ├── mrmkg_dataset.py      # 학습용 MMKG Dataset 클래스
-│   └── scienceqa/            # 원본 데이터 저장 위치
+├── data/                     # Dataset loading and preprocessing
+│   ├── build_mmkg.py         # Convert ScienceQA to MMKG format (graph-based)
+│   ├── generate_mmkg_dataset.py # Build final MMKG .pt datasets (train/val/test)
+│   ├── load_scienceqa.py     # Load and parse original ScienceQA format
+│   ├── mrmkg_dataset.py      # PyTorch Dataset class for MMKG graphs
+│   └── scienceqa/            # Directory for raw ScienceQA JSON files
 │
-├── utils/
-│   ├── graph_utils.py        # NetworkX → DGL 변환, subgraph 추출
-│   ├── visual_feature.py     # CLIP 임베딩 및 초기화
-│   └── align_utils.py        # cross-modal triplet loss 계산
+├── utils/                    # Utility modules
+│   ├── graph_utils.py        # Graph conversion: NetworkX ↔ DGL, subgraph extraction
+│   ├── visual_feature.py     # CLIP-based image embedding and node feature init
+│   └── align_utils.py        # Cross-modal alignment loss (image ↔ entity embedding)
 │
-└── README.md   
+└── README.md                 # Project overview, instructions, and usage guide
+
 ```
 
 ---
