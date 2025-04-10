@@ -1,6 +1,11 @@
 # ScienceQA raw image data (large)
 data/ScienceQA
+data/build_dgl_mmkg.py
+
+checkpoints
 
 # Preprocessed output files
 *.pt
 *.pkl
+*.jpg
+

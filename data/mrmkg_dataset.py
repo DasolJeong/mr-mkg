@@ -1,10 +1,3 @@
-# data/mrmkg_dataset.py
-"""
-Torch Dataset for loading MMKG graphs from ScienceQA splits.
-Includes utility to convert graph into LLM-friendly prompt format and tokenize for FLAN-T5.
-Also includes optional CLIP image embedding injection.
-"""
-
 import torch
 from torch.utils.data import Dataset
 from pathlib import Path
@@ -13,24 +6,23 @@ import os
 import glob
 from transformers import AutoTokenizer
 from PIL import Image
-from torchvision import transforms
 from transformers import CLIPProcessor, CLIPModel
+from models.adapters import VisualAdapter
+from utils.graph_utils import extract_mrmkg_subgraph
+
+
+SPECIAL_TOKENS = ["[IMAGE]", "[KNOWLEDGE]"]
 
 class MMKGDataset(Dataset):
     def __init__(self, graph_dir: str, tokenizer_name="google/flan-t5-base", max_length=512, use_clip=True):
-        """
-        Args:
-            graph_dir (str): Path to directory containing MMKG .pt files (e.g., data/scienceqa/mmkg_graphs/train)
-            tokenizer_name (str): HuggingFace tokenizer name
-            max_length (int): Max token length for tokenizer
-            use_clip (bool): Whether to extract CLIP embeddings for image nodes
-        """
         self.graph_files = sorted(glob.glob(os.path.join(graph_dir, '*.pt')))
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+        self.tokenizer.add_special_tokens({'additional_special_tokens': SPECIAL_TOKENS})
         self.max_length = max_length
         self.use_clip = use_clip
 
         if self.use_clip:
+            self.visual_adapter = VisualAdapter(input_dim=512, output_dim=768)
             self.clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
             self.clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
 
@@ -39,10 +31,13 @@ class MMKGDataset(Dataset):
 
     def __getitem__(self, idx):
         graph_path = self.graph_files[idx]
-        G = torch.load(graph_path)
+        G_full = torch.load(graph_path, weights_only=False)
+
+        G = extract_mrmkg_subgraph(G_full)
 
         prompt = graph_to_prompt(G)
-        answer = "[ANSWER]"
+        answer = self.get_answer_from_graph(G)
+        # answer = "[ANSWER]"
 
         input_ids, attention_mask = encode_prompt(prompt, answer, self.tokenizer, self.max_length)
 
@@ -55,8 +50,16 @@ class MMKGDataset(Dataset):
             "attention_mask": attention_mask.squeeze(0),
             "graph": G,
             "prompt": prompt,
-            "image_embedding": image_tensor
+            "image_embedding": image_tensor,
+            "answer": answer
         }
+        
+    def get_answer_from_graph(self, G):
+        # graph에서 "answer" type의 노드를 찾아서 그 값을 반환
+        for n, data in G.nodes(data=True):
+            if data.get("type") == "answer":
+                return data.get("text", "")  # 노드의 텍스트가 실제 정답
+        return "[ANSWER]"  # 만약 없으면 기본 값 반환
 
     def extract_image_embedding(self, G):
         for n, data in G.nodes(data=True):
@@ -65,28 +68,25 @@ class MMKGDataset(Dataset):
                 inputs = self.clip_processor(images=image, return_tensors="pt")
                 with torch.no_grad():
                     outputs = self.clip_model.get_image_features(**inputs)
-                return outputs.squeeze(0)  # (512,)
+                return outputs.squeeze(0)
         return None
 
 
-def graph_to_prompt(G: nx.MultiDiGraph, use_image_token=True) -> str:
-    q_node = [n for n, d in G.nodes(data=True) if d.get("type") == "text"]
+def graph_to_prompt(G: nx.MultiDiGraph, use_image_token=True, include_knowledge_token=True) -> str:
+    q_node = next((n for n, d in G.nodes(data=True) if d.get("type") == "text"), None)
     if not q_node:
         raise ValueError("No question node found in graph")
-    question_text = G.nodes[q_node[0]].get("text", "")
+    question_text = G.nodes[q_node].get("text", "")
 
-    entity_labels = [
-        d["label"] for n, d in G.nodes(data=True)
-        if d.get("type") == "entity"
-    ]
+    entity_labels = [d["label"] for _, d in G.nodes(data=True) if d.get("type") == "entity"]
 
     prompt = f"Question: {question_text}\n"
     if entity_labels:
         prompt += f"Entities: {', '.join(entity_labels)}\n"
-    if use_image_token:
-        has_image = any(d.get("type") == "image" for _, d in G.nodes(data=True))
-        if has_image:
-            prompt += "Image: [IMAGE]\n"
+    if include_knowledge_token:
+        prompt += "Knowledge: [KNOWLEDGE]\n"
+    if use_image_token and any(d.get("type") == "image" for _, d in G.nodes(data=True)):
+        prompt += "Image: [IMAGE]\n"
     prompt += "Answer:"
     return prompt
 
@@ -101,12 +101,3 @@ def encode_prompt(prompt: str, answer: str, tokenizer, max_length=512):
         return_tensors="pt"
     )
     return encoded["input_ids"], encoded["attention_mask"]
-
-
-if __name__ == "__main__":
-    dataset = MMKGDataset("data/scienceqa/mmkg_graphs/train")
-    print(f"Loaded {len(dataset)} MMKG graphs")
-    sample = dataset[0]
-    print("\nGenerated Prompt:\n", sample["prompt"])
-    print("Token IDs:", sample["input_ids"][:10])
-    print("Image Embedding shape:", sample["image_embedding"].shape if sample["image_embedding"] is not None else None)

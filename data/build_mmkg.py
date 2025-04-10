@@ -1,4 +1,3 @@
-
 """
 Construct a multimodal knowledge graph (MMKG) for a ScienceQA question using image, text, and extracted entities.
 """
@@ -43,10 +42,10 @@ def build_mmkg(question_id: int, question_text: str, image_path: Optional[str], 
     return G
 
 
-if __name__ == "__main__":
-    question = "Why do rabbits eat their poop?"
-    image_path = "data/scienceqa/images/example.jpg"
-    entities = ["rabbits", "poop"]
-    G = build_mmkg(1234, question, image_path, entities)
-    print(f"Nodes: {G.nodes(data=True)}")
-    print(f"Edges: {list(G.edges(data=True))}")
+# if __name__ == "__main__":
+#     question = "Why do rabbits eat their poop?"
+#     image_path = "data/scienceqa/images/example.jpg"
+#     entities = ["rabbits", "poop"]
+#     G = build_mmkg(1234, question, image_path, entities)
+#     print(f"Nodes: {G.nodes(data=True)}")
+#     print(f"Edges: {list(G.edges(data=True))}")

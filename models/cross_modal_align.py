@@ -1,7 +1,3 @@
-"""
-Cross-Modal Alignment Module (e.g., triplet loss).
-"""
-
 import torch
 import torch.nn as nn
 

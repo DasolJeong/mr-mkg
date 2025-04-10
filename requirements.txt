@@ -1,0 +1,22 @@
+# Core
+torch>=1.13.1
+torchvision
+torchaudio
+
+# Graph
+dgl>=1.1.2
+networkx>=3.0
+
+# Transformers (LLM, CLIP)
+transformers>=4.30.0
+huggingface_hub
+sentencepiece  # for T5 tokenizer
+
+# Image Processing
+Pillow>=9.0.0
+
+# Dataset Handling & Utilities
+tqdm
+numpy
+scikit-learn
+regex
